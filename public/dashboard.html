@@ -1,0 +1,37 @@
+<!-- public/dashboard.html -->
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Dashboard - Tienda</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="logo">TIENDA</div>
+        <nav>
+          <button data-view="usuarios" class="nav-btn active">Usuarios</button>
+          <button data-view="productos" class="nav-btn">Productos</button>
+          <button data-view="config" class="nav-btn">Configuración</button>
+        </nav>
+        <div class="bottom">
+          <button id="logoutBtn" class="btn-ghost">Cerrar sesión</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="main-header">
+          <h2 id="sectionTitle">Usuarios</h2>
+        </header>
+
+        <section id="content" class="content">
+          <!-- Aquí carga Usuarios / Productos / Config -->
+        </section>
+      </main>
+    </div>
+
+    <script src="/js/app.js"></script>
+  </body>
+</html>

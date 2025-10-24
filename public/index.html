@@ -1,0 +1,47 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Login - Tienda</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <main class="login-page">
+      <div class="card login-card">
+        <h1>Bienvenido</h1>
+        <p class="muted">Inicia sesión para entrar al dashboard</p>
+        <form id="loginForm">
+          <label>Usuario</label>
+          <input type="text" id="username" required />
+          <label>Contraseña</label>
+          <input type="password" id="password" required />
+          <button type="submit" class="btn">Entrar</button>
+          <p id="msg" class="error"></p>
+        </form>
+      </div>
+    </main>
+
+    <script>
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const username = document.getElementById("username").value;
+          const password = document.getElementById("password").value;
+          const res = await fetch("/api/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            window.location.href = "/dashboard.html";
+          } else {
+            document.getElementById("msg").textContent = data.error || "Error";
+          }
+        });
+    </script>
+  </body>
+</html>
