@@ -1,0 +1,164 @@
+/* ===========================
+   💼 LOGIN ELEGANTE - TIENDA M&S
+   =========================== */
+
+:root {
+  --color-fondo: #0e0e0e;
+  --color-panel: #1a1a1a;
+  --color-acento: #c5a55e;
+  --color-texto: #e4e4e4;
+  --color-borde: #333;
+  --color-error: #ff4d4d;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+body {
+  background-color: var(--color-fondo);
+  color: var(--color-texto);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.login-container {
+  display: flex;
+  width: 900px;
+  max-width: 95%;
+  height: 550px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.7);
+}
+
+/* Panel del login */
+.login-panel {
+  flex: 1;
+  background-color: var(--color-panel);
+  padding: 60px 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.logo-area {
+  text-align: left;
+  margin-bottom: 50px;
+}
+
+.logo-area h1 {
+  font-size: 2rem;
+  letter-spacing: 1px;
+  color: var(--color-acento);
+}
+
+.logo-area h1 span {
+  color: #fff;
+}
+
+.logo-area p {
+  font-size: 0.9rem;
+  color: #aaa;
+  margin-top: 5px;
+}
+
+/* Campos de entrada */
+.input-group {
+  margin-bottom: 25px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 0.9rem;
+  color: #bbb;
+  margin-bottom: 8px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px 15px;
+  background-color: #101010;
+  border: 1.5px solid var(--color-borde);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.input-group input:focus {
+  border-color: var(--color-acento);
+  outline: none;
+  box-shadow: 0 0 6px rgba(197, 165, 94, 0.4);
+}
+
+/* Botón */
+button {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--color-acento);
+  color: #000;
+  font-weight: 600;
+  font-size: 1.05rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background-color: #d4b86b;
+  transform: scale(1.02);
+}
+
+/* Imagen lateral */
+.login-image {
+  flex: 1;
+  background-image: url("https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=80");
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.7);
+}
+
+/* Mensaje de error */
+.mensaje-error {
+  color: var(--color-error);
+  text-align: center;
+  margin-top: 15px;
+  font-size: 0.9rem;
+}
+
+/* Animación de entrada */
+.login-panel {
+  animation: slideIn 0.8s ease forwards;
+  transform: translateX(-50px);
+  opacity: 0;
+}
+
+@keyframes slideIn {
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive */
+@media (max-width: 800px) {
+  .login-container {
+    flex-direction: column;
+    height: auto;
+  }
+
+  .login-image {
+    height: 200px;
+  }
+
+  .login-panel {
+    padding: 40px 30px;
+  }
+}

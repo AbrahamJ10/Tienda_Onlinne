@@ -1,246 +1,305 @@
-// server.js
-require("dotenv").config();
-const express = require("express");
-const path = require("path");
-const bodyParser = require("body-parser");
-const session = require("express-session");
-const pgSession = require("connect-pg-simple")(session);
-const bcrypt = require("bcryptjs");
-const db = require("./db");
+// ============================================================
+// 🌐 TIENDA M&S - Servidor Express + PostgreSQL + Cloudinary
+// ============================================================
 
+import express from "express";
+import { Pool } from "pg";
+import bcrypt from "bcryptjs";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import path from "path";
+import dotenv from "dotenv";
+
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+// ============================================================
+// 🗄️ CONEXIÓN A POSTGRESQL (Neon o local)
+// ============================================================
+const pool = new Pool({
+  connectionString: `postgresql://${process.env.PGUSER}:${process.env.PGPASSWORD}@${process.env.PGHOST}/${process.env.PGDATABASE}?sslmode=require`,
+});
 
-// Sessions persistidas en Postgres (usa la misma conexión)
+pool.on("error", (err) =>
+  console.error("❌ Error en PostgreSQL:", err.message)
+);
+
+// ============================================================
+// ⚙️ SESIONES
+// ============================================================
+const PgSession = connectPgSimple(session);
 app.use(
   session({
-    store: new pgSession({
-      pool: db.pool,
-      tableName: "session",
-    }),
-    secret: process.env.SESSION_SECRET || "esta_es_una_clave_secreta",
+    store: new PgSession({ pool }),
+    secret: process.env.SESSION_SECRET || "secreto_tienda_ms",
     resave: false,
     saveUninitialized: false,
-    cookie: {
-      maxAge: 1000 * 60 * 60 * 8, // 8 horas
-    },
+    cookie: { maxAge: 1000 * 60 * 60 * 2 }, // 2h
   })
 );
 
-// Archivos estáticos (frontend)
-app.use(express.static(path.join(__dirname, "public")));
+// ============================================================
+// ☁️ CONFIGURACIÓN CLOUDINARY
+// ============================================================
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
+  api_key: process.env.CLOUDINARY_API_KEY || "",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "",
+});
 
-// ---------------------------
-// Helpers
-// ---------------------------
-function requireAuth(req, res, next) {
-  if (req.session && req.session.user) return next();
-  return res.status(401).json({ error: "No autorizado" });
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "productos_tienda_ms",
+    allowed_formats: ["jpg", "jpeg", "png"],
+  },
+});
+const upload = multer({ storage });
+
+// ============================================================
+// 🧩 MIDDLEWARES
+// ============================================================
+app.use(express.static(path.join("public")));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Middleware de protección
+function verificarSesion(req, res, next) {
+  if (!req.session.user) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+  next();
 }
 
-// ---------------------------
-// Rutas API
-// ---------------------------
+// ============================================================
+// 👤 LOGIN / LOGOUT
+// ============================================================
 
-// LOGIN
+// 🔐 LOGIN
 app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-  if (!username || !password)
-    return res.status(400).json({ error: "Faltan credenciales" });
-
   try {
-    const q = await db.query(
-      "SELECT id, nombre, apellido, id_cargo, username, password FROM usuario WHERE username = $1",
+    const { username, password } = req.body;
+
+    const result = await pool.query(
+      "SELECT * FROM usuario WHERE username = $1",
       [username]
     );
-    if (q.rowCount === 0)
-      return res.status(401).json({ error: "Usuario o contraseña inválidos" });
 
-    const user = q.rows[0];
-    const stored = user.password || "";
-
-    // Intentar bcrypt primero (por si ya está hasheada)
-    let ok = false;
-    try {
-      ok = await bcrypt.compare(password, stored);
-    } catch (e) {
-      ok = false;
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: "Usuario no encontrado" });
     }
 
-    // Si falla bcrypt, permitir comparación directa (soporte para contraseñas en texto plano como tu ejemplo).
-    if (!ok && password === stored) ok = true;
+    const user = result.rows[0];
+    const passwordValida = await bcrypt.compare(password, user.password);
 
-    if (!ok)
-      return res.status(401).json({ error: "Usuario o contraseña inválidos" });
+    if (!passwordValida) {
+      return res.status(401).json({ error: "Contraseña incorrecta" });
+    }
 
-    // Guardar sesión (no guardar la contraseña)
+    // Guardamos sesión
     req.session.user = {
       id: user.id,
       nombre: user.nombre,
-      apellido: user.apellido,
-      id_cargo: user.id_cargo,
       username: user.username,
     };
 
-    return res.json({ success: true, user: req.session.user });
+    res.json({ mensaje: "Inicio de sesión exitoso" });
   } catch (err) {
-    console.error("Login error:", err);
-    return res.status(500).json({ error: "Error interno" });
+    console.error("Error en login:", err);
+    res.status(500).json({ error: "Error interno en login" });
   }
 });
 
-// LOGOUT
+// 🚪 LOGOUT
 app.post("/api/logout", (req, res) => {
-  req.session.destroy(() => res.json({ success: true }));
+  req.session.destroy(() => {
+    res.json({ mensaje: "Sesión cerrada" });
+  });
 });
 
-// OBTENER USUARIO AUTENTICADO
-app.get("/api/me", (req, res) => {
-  if (req.session && req.session.user)
-    return res.json({ user: req.session.user });
-  return res.status(401).json({ error: "No autenticado" });
-});
-
-// ---------------------------
-// Usuarios CRUD (ejemplos: listar, crear, borrar)
-// ---------------------------
-app.get("/api/usuarios", requireAuth, async (req, res) => {
+// ============================================================
+// 📦 PRODUCTOS
+// ============================================================
+app.get("/api/productos", verificarSesion, async (req, res) => {
   try {
-    const q = await db.query(
-      "SELECT u.id, u.nombre, u.apellido, u.username, c.cargo FROM usuario u LEFT JOIN cargo c ON u.id_cargo = c.id ORDER BY u.id"
+    const result = await pool.query(
+      `SELECT p.*, t.tipo, m.marca
+       FROM producto p
+       LEFT JOIN tipo t ON p.id_tipo = t.id
+       LEFT JOIN marca m ON p.id_marca = m.id
+       ORDER BY p.id`
     );
-    res.json({ usuarios: q.rows });
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error listando usuarios" });
+    res.status(500).json({ error: "Error al obtener productos" });
   }
 });
 
-app.post("/api/usuarios", requireAuth, async (req, res) => {
-  const { nombre, apellido, id_cargo, username, password } = req.body;
-  if (!nombre || !apellido || !username || !password)
-    return res.status(400).json({ error: "Faltan campos" });
+app.post(
+  "/api/productos",
+  verificarSesion,
+  upload.single("imagen"),
+  async (req, res) => {
+    try {
+      const { id_tipo, id_marca, peso, descripcion, fv, stock, costo, estado } =
+        req.body;
+      const imagenUrl = req.file ? req.file.path : null;
 
+      const idResult = await pool.query(
+        "SELECT 'PRO' || LPAD(nextval('seq_producto')::text, 7, '0') AS id"
+      );
+      const idGenerado = idResult.rows[0].id;
+
+      const result = await pool.query(
+        `INSERT INTO producto (id, id_tipo, id_marca, peso, descripcion, fv, stock, costo, imagen)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+        [
+          idGenerado,
+          id_tipo || null,
+          id_marca || null,
+          peso || null,
+          descripcion || null,
+          fv || null,
+          stock || 0,
+          costo || 0,
+          imagenUrl,
+        ]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Error al crear producto:", err);
+      res.status(500).json({ error: "Error al guardar producto" });
+    }
+  }
+);
+
+app.put(
+  "/api/productos/:id",
+  verificarSesion,
+  upload.single("imagen"),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { id_tipo, id_marca, peso, descripcion, fv, stock, costo, estado } =
+        req.body;
+
+      const resultImg = await pool.query(
+        "SELECT imagen FROM producto WHERE id=$1",
+        [id]
+      );
+      const imagenActual = resultImg.rows[0]?.imagen;
+      const imagenFinal = req.file ? req.file.path : imagenActual;
+
+      const result = await pool.query(
+        `UPDATE producto SET id_tipo=$1,id_marca=$2,peso=$3,descripcion=$4,fv=$5,
+       stock=$6,costo=$7,imagen=$8 WHERE id=$9 RETURNING *`,
+        [
+          id_tipo || null,
+          id_marca || null,
+          peso || null,
+          descripcion || null,
+          fv || null,
+          stock || 0,
+          costo || 0,
+          imagenFinal,
+          id,
+        ]
+      );
+      res.json(result.rows[0]);
+    } catch (err) {
+      console.error("Error al actualizar producto:", err);
+      res.status(500).json({ error: "Error al actualizar producto" });
+    }
+  }
+);
+
+app.delete("/api/productos/:id", verificarSesion, async (req, res) => {
   try {
-    const hashed = await bcrypt.hash(password, 10);
-    const q = await db.query(
-      "INSERT INTO usuario (nombre, apellido, id_cargo, username, password) VALUES ($1,$2,$3,$4,$5) RETURNING id, nombre, apellido, username",
-      [nombre, apellido, id_cargo || null, username, hashed]
+    const { id } = req.params;
+    await pool.query("DELETE FROM producto WHERE id=$1", [id]);
+    res.json({ mensaje: "Producto eliminado correctamente" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al eliminar producto" });
+  }
+});
+
+// ============================================================
+// 🏷️ TIPOS Y MARCAS
+// ============================================================
+app.get("/api/tipos", verificarSesion, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, tipo FROM tipo ORDER BY tipo");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener tipos" });
+  }
+});
+
+app.post("/api/tipos", verificarSesion, async (req, res) => {
+  try {
+    const { tipo } = req.body;
+    const result = await pool.query(
+      "INSERT INTO tipo (tipo) VALUES ($1) RETURNING id, tipo",
+      [tipo]
     );
-    res.json({ usuario: q.rows[0] });
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error creando usuario" });
+    res.status(500).json({ error: "Error al agregar tipo" });
   }
 });
 
-app.delete("/api/usuarios/:id", requireAuth, async (req, res) => {
+app.delete("/api/tipos/:id", verificarSesion, async (req, res) => {
   try {
-    await db.query("DELETE FROM usuario WHERE id = $1", [req.params.id]);
-    res.json({ success: true });
+    await pool.query("DELETE FROM tipo WHERE id=$1", [req.params.id]);
+    res.json({ mensaje: "Tipo eliminado correctamente" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error borrando usuario" });
+    res.status(500).json({ error: "Error al eliminar tipo" });
   }
 });
 
-// ---------------------------
-// Productos (listar, crear, borrar, obtener por id)
-// ---------------------------
-app.get("/api/productos", requireAuth, async (req, res) => {
+app.get("/api/marcas", verificarSesion, async (req, res) => {
   try {
-    const q =
-      await db.query(`SELECT p.id, p.fecha, t.tipo, m.marca, p.peso, p.descripcion, p.fv, p.stock, p.costo, p.imagen
-                              FROM producto p
-                              LEFT JOIN tipo t ON p.id_tipo = t.id
-                              LEFT JOIN marca m ON p.id_marca = m.id
-                              ORDER BY p.id`);
-    res.json({ productos: q.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error listando productos" });
-  }
-});
-
-app.post("/api/productos", requireAuth, async (req, res) => {
-  const { id_tipo, id_marca, peso, descripcion, fv, stock, costo, imagen } =
-    req.body;
-  try {
-    const q = await db.query(
-      `INSERT INTO producto (id_tipo, id_marca, peso, descripcion, fv, stock, costo, imagen)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [
-        id_tipo || null,
-        id_marca || null,
-        peso || null,
-        descripcion || null,
-        fv || null,
-        stock || 0,
-        costo || 0,
-        imagen || null,
-      ]
+    const result = await pool.query(
+      "SELECT id, marca FROM marca ORDER BY marca"
     );
-    res.json({ producto: q.rows[0] });
+    res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error creando producto" });
+    res.status(500).json({ error: "Error al obtener marcas" });
   }
 });
 
-app.delete("/api/productos/:id", requireAuth, async (req, res) => {
+app.post("/api/marcas", verificarSesion, async (req, res) => {
   try {
-    await db.query("DELETE FROM producto WHERE id = $1", [req.params.id]);
-    res.json({ success: true });
+    const { marca } = req.body;
+    const result = await pool.query(
+      "INSERT INTO marca (marca) VALUES ($1) RETURNING id, marca",
+      [marca]
+    );
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error borrando producto" });
+    res.status(500).json({ error: "Error al agregar marca" });
   }
 });
 
-// ---------------------------
-// Configuracion (ejemplo: listar cargos, tipos, marcas)
-// ---------------------------
-app.get("/api/config/cargos", requireAuth, async (req, res) => {
+app.delete("/api/marcas/:id", verificarSesion, async (req, res) => {
   try {
-    const q = await db.query("SELECT * FROM cargo ORDER BY id");
-    res.json({ cargos: q.rows });
+    await pool.query("DELETE FROM marca WHERE id=$1", [req.params.id]);
+    res.json({ mensaje: "Marca eliminada correctamente" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error" });
+    res.status(500).json({ error: "Error al eliminar marca" });
   }
 });
 
-app.get("/api/config/tipos", requireAuth, async (req, res) => {
-  try {
-    const q = await db.query("SELECT * FROM tipo ORDER BY id");
-    res.json({ tipos: q.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error" });
-  }
-});
-
-app.get("/api/config/marcas", requireAuth, async (req, res) => {
-  try {
-    const q = await db.query("SELECT * FROM marca ORDER BY id");
-    res.json({ marcas: q.rows });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error" });
-  }
-});
-
-// ---------------------------
-// Fallback: sirve dashboard
-// ---------------------------
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// ---------------------------
-app.listen(PORT, () => {
-  console.log(`Servidor iniciado en http://localhost:${PORT}`);
-});
+// ============================================================
+// 🚀 INICIAR SERVIDOR
+// ============================================================
+app.listen(PORT, () =>
+  console.log(`✅ Servidor corriendo en http://localhost:${PORT}`)
+);
