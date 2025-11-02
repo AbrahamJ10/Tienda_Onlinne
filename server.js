@@ -17,7 +17,8 @@ import bodyParser from "body-parser";
 
 dotenv.config();
 const app = express();
-const PORT = 3000;
+//const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 // ============================================================
 // 🧩 MIDDLEWARES (ORDEN CORRECTO)
@@ -150,7 +151,7 @@ app.post("/api/logout", (req, res) => {
 // ============================================================
 // SIN verificarSesion para permitir acceso desde Android
 //app.get("/api/productos", async (req, res) => {
-app.get("/api/productos", verificarSesion, async (req, res) => {
+app.get("/api/productos", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, t.tipo, m.marca
