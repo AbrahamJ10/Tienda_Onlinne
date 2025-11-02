@@ -12,10 +12,27 @@ import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import path from "path";
 import dotenv from "dotenv";
+import cors from "cors";
+import bodyParser from "body-parser";
 
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
+
+// ============================================================
+// 🧩 MIDDLEWARES (ORDEN CORRECTO)
+// ============================================================
+app.use(
+  cors({
+    origin: "*", // permite peticiones desde Android (10.0.2.2)
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+app.use(express.json()); // 🟢 necesario para parsear JSON
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join("public")));
 
 // ============================================================
 // 🗄️ CONEXIÓN A POSTGRESQL (Neon o local)
@@ -83,6 +100,8 @@ function verificarSesion(req, res, next) {
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
+    console.log("🧠 Usuario recibido:", username);
+    console.log("🔑 Password recibido:", password);
 
     const result = await pool.query(
       "SELECT * FROM usuario WHERE username = $1",
@@ -90,23 +109,28 @@ app.post("/api/login", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.log("🚫 Usuario no encontrado en BD");
       return res.status(400).json({ error: "Usuario no encontrado" });
     }
 
     const user = result.rows[0];
+    console.log("💾 Hash en BD:", user.password);
+
     const passwordValida = await bcrypt.compare(password, user.password);
+    console.log("✅ Resultado comparación:", passwordValida);
 
     if (!passwordValida) {
+      console.log("❌ Contraseña incorrecta");
       return res.status(401).json({ error: "Contraseña incorrecta" });
     }
 
-    // Guardamos sesión
     req.session.user = {
       id: user.id,
       nombre: user.nombre,
       username: user.username,
     };
 
+    console.log("🎉 Login exitoso para:", user.username);
     res.json({ mensaje: "Inicio de sesión exitoso" });
   } catch (err) {
     console.error("Error en login:", err);
@@ -124,6 +148,8 @@ app.post("/api/logout", (req, res) => {
 // ============================================================
 // 📦 PRODUCTOS
 // ============================================================
+// SIN verificarSesion para permitir acceso desde Android
+//app.get("/api/productos", async (req, res) => {
 app.get("/api/productos", verificarSesion, async (req, res) => {
   try {
     const result = await pool.query(
@@ -233,7 +259,18 @@ app.delete("/api/productos/:id", verificarSesion, async (req, res) => {
 // ============================================================
 // 🏷️ TIPOS Y MARCAS
 // ============================================================
+/*
 app.get("/api/tipos", verificarSesion, async (req, res) => {
+  try {
+    const result = await pool.query("SELECT id, tipo FROM tipo ORDER BY tipo");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener tipos" });
+  }
+});
+*/
+
+app.get("/api/tipos", async (req, res) => {
   try {
     const result = await pool.query("SELECT id, tipo FROM tipo ORDER BY tipo");
     res.json(result.rows);
@@ -264,7 +301,19 @@ app.delete("/api/tipos/:id", verificarSesion, async (req, res) => {
   }
 });
 
+/*
 app.get("/api/marcas", verificarSesion, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, marca FROM marca ORDER BY marca"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: "Error al obtener marcas" });
+  }
+});
+*/
+app.get("/api/marcas", async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT id, marca FROM marca ORDER BY marca"
@@ -300,6 +349,22 @@ app.delete("/api/marcas/:id", verificarSesion, async (req, res) => {
 // ============================================================
 // 🚀 INICIAR SERVIDOR
 // ============================================================
-app.listen(PORT, () =>
-  console.log(`✅ Servidor corriendo en http://localhost:${PORT}`)
+// ============================================================
+// ✅ CORS para permitir peticiones desde Android / navegadores
+// ============================================================
+
+app.use(
+  cors({
+    origin: "*", // permite cualquier origen (ajusta si deseas más seguridad)
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
+
+// ============================================================
+// 🚀 INICIAR SERVIDOR - ESCUCHA EN TODAS LAS INTERFACES
+// ============================================================
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`🌐 También accesible desde emulador en http://10.0.2.2:${PORT}`);
+});
