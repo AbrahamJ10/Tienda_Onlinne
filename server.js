@@ -81,9 +81,9 @@ const upload = multer({ storage });
 // ============================================================
 // 🧩 MIDDLEWARES
 // ============================================================
-app.use(express.static(path.join("public")));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+//app.use(express.static(path.join("public")));
+//app.use(express.json());
+//app.use(express.urlencoded({ extended: true }));
 
 // Middleware de protección
 function verificarSesion(req, res, next) {
@@ -353,14 +353,14 @@ app.delete("/api/marcas/:id", verificarSesion, async (req, res) => {
 // ============================================================
 // ✅ CORS para permitir peticiones desde Android / navegadores
 // ============================================================
-
+/*
 app.use(
   cors({
     origin: "*", // permite cualquier origen (ajusta si deseas más seguridad)
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
-);
+);*/
 
 // ============================================================
 // 🚀 INICIAR SERVIDOR - ESCUCHA EN TODAS LAS INTERFACES
