@@ -150,7 +150,8 @@ app.post("/api/logout", (req, res) => {
 // ============================================================
 // SIN verificarSesion para permitir acceso desde Android
 //app.get("/api/productos", async (req, res) => {
-app.get("/api/productos", verificarSesion, async (req, res) => {
+// Permitir ver productos sin login
+app.get("/api/productos", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, t.tipo, m.marca
