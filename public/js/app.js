@@ -102,7 +102,7 @@ function mostrarProductos(lista) {
       <td>${p.stock ?? ""}</td>
       <td>${p.costo ?? ""}</td>
       <td>${p.imagen ? `<img src="${p.imagen}" width="50">` : ""}</td>
-      <td>${p.estado || "Disponible"}</td>
+      <td>${p.estado ? "Disponible" : "Agotado"}</td>
       <td>
         <button class="edit" onclick="editar('${p.id}')">Editar</button>
         <button class="delete" onclick="eliminar('${p.id}')">Eliminar</button>
@@ -158,7 +158,7 @@ async function editar(id) {
   form.fv.value = p.fv ? p.fv.split("T")[0] : "";
   form.stock.value = p.stock ?? "";
   form.costo.value = p.costo ?? "";
-  form.estado.value = p.estado || "Disponible";
+  form.estado.value = p.estado ? "Disponible" : "Agotado";
 
   // 4️⃣ Mostrar previsualización de imagen (opcional)
   const imgPrev = document.getElementById("imgPreview");

@@ -17,8 +17,7 @@ import bodyParser from "body-parser";
 
 dotenv.config();
 const app = express();
-//const PORT = 3000;
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // ============================================================
 // 🧩 MIDDLEWARES (ORDEN CORRECTO)
@@ -81,9 +80,9 @@ const upload = multer({ storage });
 // ============================================================
 // 🧩 MIDDLEWARES
 // ============================================================
-//app.use(express.static(path.join("public")));
-//app.use(express.json());
-//app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join("public")));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Middleware de protección
 function verificarSesion(req, res, next) {
@@ -151,7 +150,7 @@ app.post("/api/logout", (req, res) => {
 // ============================================================
 // SIN verificarSesion para permitir acceso desde Android
 //app.get("/api/productos", async (req, res) => {
-app.get("/api/productos", async (req, res) => {
+app.get("/api/productos", verificarSesion, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, t.tipo, m.marca
@@ -353,14 +352,14 @@ app.delete("/api/marcas/:id", verificarSesion, async (req, res) => {
 // ============================================================
 // ✅ CORS para permitir peticiones desde Android / navegadores
 // ============================================================
-/*
+
 app.use(
   cors({
     origin: "*", // permite cualquier origen (ajusta si deseas más seguridad)
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
-);*/
+);
 
 // ============================================================
 // 🚀 INICIAR SERVIDOR - ESCUCHA EN TODAS LAS INTERFACES
